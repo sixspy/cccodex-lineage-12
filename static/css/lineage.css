@@ -48,3 +48,17 @@ input, select {
 }
 h2,h3 { margin: 0 0 .5rem; }
 pre { white-space: pre-wrap; font-size: .8rem; }
+
+/* 晋升放行页 */
+.promo-grid { display: grid; gap: .85rem; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.kv { display: grid; grid-template-columns: 9em 1fr; gap: .25rem .6rem; font-size: .85rem; }
+.kv b { color: var(--muted); font-weight: 400; }
+.pill { display: inline-block; font-size: .75rem; padding: .15rem .55rem; border-radius: 999px; border: 1px solid var(--line); background: #20332e; }
+.pill.ok { border-color: #3f7d54; color: #9fe0b6; background: #16301f; }
+.pill.bad { border-color: #8a3b3b; color: #ffb0b0; background: #351717; }
+.pill.mode { border-color: var(--accent); color: #ffe9a8; }
+table.tbl { width: 100%; border-collapse: collapse; font-size: .82rem; }
+table.tbl th, table.tbl td { border: 1px solid var(--line); padding: .4rem .5rem; text-align: left; }
+table.tbl th { color: var(--muted); font-weight: 400; background: #12221f; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .76rem; word-break: break-all; }
+.hint { font-size: .8rem; color: var(--muted); }

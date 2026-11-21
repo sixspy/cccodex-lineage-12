@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from app.db import get_db
 from app.services.errors import ServiceError
+from app.services.promo import RECEIVE_MODES
 
 
 def list_settings(db_path: str | None = None) -> list[dict]:
@@ -24,6 +25,8 @@ def update_setting(key: str, value: str, db_path: str | None = None) -> dict:
         ).fetchone()
         if not row:
             raise ServiceError("参数不存在", 404)
+        if key == "promo_receive_mode" and value not in RECEIVE_MODES:
+            raise ServiceError("晋升接收方式只许：快照表 或 文件凭证，两种不可同时打开")
         conn.execute(
             "UPDATE lab_settings SET value=? WHERE key=?", (value, key)
         )

@@ -11,6 +11,7 @@ from app.services import edges as edges_svc
 from app.services import impact as impact_svc
 from app.services import nodes as nodes_svc
 from app.services import notify as notify_svc
+from app.services import promo as promo_svc
 from app.services import settings as settings_svc
 from app.services.errors import ServiceError
 
@@ -131,6 +132,7 @@ def create_app() -> Bottle:
                 "lab": Config.LAB_NAME,
                 "user": _current_user(),
                 "coverage_chip": coverage_svc.latest_chip(),
+                "promo_state": promo_svc.promo_state(),
             }
         )
 
@@ -264,5 +266,94 @@ def create_app() -> Bottle:
                 )
             }
         )
+
+    # ---------- 跨仓晋升放行 ----------
+
+    @app.get("/api/promo/state")
+    @wrap
+    def api_promo_state():
+        _require_user()
+        return _json(promo_svc.promo_state())
+
+    @app.get("/api/promo/mode")
+    @wrap
+    def api_promo_mode_get():
+        _require_user()
+        return _json({"receive_mode": promo_svc.get_receive_mode()})
+
+    @app.post("/api/promo/mode")
+    @wrap
+    def api_promo_mode_set():
+        _require_user()
+        body = _read_json()
+        return _json({"item": promo_svc.set_receive_mode(str(body.get("receive_mode") or ""))})
+
+    @app.post("/api/promo/packages")
+    @wrap
+    def api_promo_package_create():
+        _require_user()
+        body = _read_json()
+        item = promo_svc.create_package(
+            str(body.get("source_repo") or "源仓"),
+            str(body.get("target_repo") or "目标仓"),
+            str(body.get("note") or ""),
+        )
+        return _json({"item": item})
+
+    @app.get("/api/promo/packages")
+    @wrap
+    def api_promo_package_list():
+        _require_user()
+        return _json({"items": promo_svc.list_packages()})
+
+    @app.get("/api/promo/packages/<package_id:int>")
+    @wrap
+    def api_promo_package_detail(package_id):
+        _require_user()
+        return _json(promo_svc.package_detail(package_id))
+
+    @app.post("/api/promo/packages/<package_id:int>/release")
+    @wrap
+    def api_promo_release(package_id):
+        user = _require_user()
+        body = _read_json()
+        holder = str(body.get("holder") or user)
+        return _json(promo_svc.release_package(package_id, holder))
+
+    @app.get("/api/promo/receipts")
+    @wrap
+    def api_promo_receipts():
+        _require_user()
+        return _json({"items": promo_svc.list_receipts()})
+
+    @app.get("/api/promo/target-edges")
+    @wrap
+    def api_promo_target_edges():
+        _require_user()
+        return _json({"items": promo_svc.list_target_edges()})
+
+    @app.get("/api/promo/same-source")
+    @wrap
+    def api_promo_same_source():
+        _require_user()
+        return _json({"items": promo_svc.same_source_counts()})
+
+    @app.post("/api/promo/ingest")
+    @wrap
+    def api_promo_ingest():
+        _require_user()
+        return _json({"run": promo_svc.run_full_ingest()})
+
+    @app.get("/api/promo/ingest")
+    @wrap
+    def api_promo_ingest_list():
+        _require_user()
+        return _json({"items": promo_svc.list_ingest_runs()})
+
+    @app.get("/api/promo/locks")
+    @wrap
+    def api_promo_locks():
+        _require_user()
+        return _json({"items": promo_svc.list_locks()})
 
     return app

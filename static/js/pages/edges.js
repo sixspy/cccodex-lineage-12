@@ -3,6 +3,7 @@ import { api } from '../api.js';
 export async function renderEdges(view, setMsg) {
   const nodes = await api('/api/nodes');
   const edges = await api('/api/edges');
+  const sameSource = await api('/api/promo/same-source').catch(() => ({ items: [] }));
   const opts = (nodes.items || []).map((n) => `<option value="${n.id}">${n.node_code}</option>`).join('');
   view.innerHTML = `
     <section class="card">
@@ -14,6 +15,15 @@ export async function renderEdges(view, setMsg) {
         <label>变换<input id="kind" value="直抽" /></label>
         <button class="primary" id="create" type="button">创建边</button>
       </div>
+    </section>
+    <section class="card" style="margin-top:1rem">
+      <h3>晋升边表同源条数（目标仓）</h3>
+      <table class="tbl">
+        <thead><tr><th>来源仓</th><th>接收方式</th><th>同源条数</th></tr></thead>
+        <tbody>
+          ${(sameSource.items || []).map((r) => `<tr><td>${r.source_repo}</td><td><span class="pill mode">${r.receive_mode}</span></td><td>${r.edge_count}</td></tr>`).join('') || '<tr><td colspan="3" class="hint">目标仓边表暂无晋升边</td></tr>'}
+        </tbody>
+      </table>
     </section>
     <section class="wall" style="margin-top:1rem">
       ${(edges.items || []).map((e) => `<article class="card">

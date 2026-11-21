@@ -78,6 +78,75 @@ CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS promo_packages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_code TEXT NOT NULL UNIQUE,
+  source_repo TEXT NOT NULL,
+  target_repo TEXT NOT NULL,
+  edge_count INTEGER NOT NULL,
+  edge_fingerprint TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('已打包','已放行','已接收','已拒写')),
+  note TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT 'admin',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  promoted_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS promo_receipts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_id INTEGER NOT NULL UNIQUE REFERENCES promo_packages(id),
+  receipt_code TEXT NOT NULL UNIQUE,
+  receive_mode TEXT NOT NULL CHECK (receive_mode IN ('快照表','文件凭证')),
+  source_repo TEXT NOT NULL,
+  target_repo TEXT NOT NULL,
+  edge_count INTEGER NOT NULL,
+  edge_fingerprint TEXT NOT NULL,
+  payload_file TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL CHECK (status IN ('凭证已记一行','已拦')),
+  holder TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS promo_snapshot_edges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_id INTEGER NOT NULL REFERENCES promo_packages(id),
+  edge_code TEXT NOT NULL,
+  edge_fingerprint TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  UNIQUE(package_id, edge_code)
+);
+
+CREATE TABLE IF NOT EXISTS promo_target_edges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_id INTEGER NOT NULL REFERENCES promo_packages(id),
+  edge_code TEXT NOT NULL UNIQUE,
+  upstream_code TEXT NOT NULL,
+  downstream_code TEXT NOT NULL,
+  transform_kind TEXT NOT NULL,
+  edge_fingerprint TEXT NOT NULL,
+  source_repo TEXT NOT NULL,
+  receive_mode TEXT NOT NULL CHECK (receive_mode IN ('快照表','文件凭证')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS promo_ingest_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  status TEXT NOT NULL CHECK (status IN ('已通','已拦')),
+  reason TEXT NOT NULL DEFAULT '',
+  expected_count INTEGER NOT NULL,
+  actual_count INTEGER NOT NULL,
+  expected_fingerprint TEXT NOT NULL,
+  actual_fingerprint TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS promo_release_locks (
+  package_id INTEGER PRIMARY KEY REFERENCES promo_packages(id),
+  holder TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -86,6 +155,8 @@ def connect(db_path: str | None = None) -> sqlite3.Connection:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # WAL：读写可并发，写仍为单写者，BEGIN IMMEDIATE 的排他语义不变
+    conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
@@ -106,3 +177,26 @@ def get_db(db_path: str | None = None):
 def init_schema(db_path: str | None = None) -> None:
     with get_db(db_path) as conn:
         conn.executescript(SCHEMA)
+
+
+@contextmanager
+def immediate_tx(db_path: str | None = None):
+    """立即写事务：BEGIN IMMEDIATE 抢先获取写锁，提交或回滚后释放。
+
+    用于晋升放行等必须排他的单次写入；抢不到写锁会抛 sqlite3.OperationalError。
+    """
+    path = db_path or Config.database()
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, timeout=0, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        yield conn
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.close()

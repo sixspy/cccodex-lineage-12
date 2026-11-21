@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from app.db import SCHEMA, get_db, init_schema
 
-SCHEMA_VERSION = "lineage-v1"
+SCHEMA_VERSION = "lineage-v2"
 
 
 def _schema_compatible(conn) -> bool:
@@ -27,6 +27,12 @@ def seed_if_needed(db_path: str | None = None) -> dict:
         ).fetchone()
         if not _schema_compatible(conn) or (ver and ver["value"] != SCHEMA_VERSION):
             for table in (
+                "promo_ingest_runs",
+                "promo_release_locks",
+                "promo_target_edges",
+                "promo_snapshot_edges",
+                "promo_receipts",
+                "promo_packages",
                 "notify_logs",
                 "impact_hits",
                 "impact_jobs",
@@ -84,7 +90,8 @@ def seed_if_needed(db_path: str | None = None) -> dict:
             "INSERT INTO lab_settings(key, value, label) VALUES "
             "('impact_max_hop','8','影响最大跳数'),"
             "('notify_channel','站内','默认通知渠道'),"
-            "('coverage_mode','严格','覆盖对账模式')"
+            "('coverage_mode','严格','覆盖对账模式'),"
+            "('promo_receive_mode','快照表','晋升接收方式（快照表/文件凭证，二选一）')"
         )
         conn.execute("INSERT INTO meta(key, value) VALUES ('seeded','1')")
         conn.execute(
@@ -96,7 +103,7 @@ def seed_if_needed(db_path: str | None = None) -> dict:
             "seeded": True,
             "nodes": len(nodes),
             "edges": len(edges) + 1,
-            "settings": 3,
+            "settings": 4,
         }
 
 
@@ -104,6 +111,12 @@ def reset_seed(db_path: str | None = None) -> None:
     init_schema(db_path)
     with get_db(db_path) as conn:
         for table in (
+            "promo_ingest_runs",
+            "promo_release_locks",
+            "promo_target_edges",
+            "promo_snapshot_edges",
+            "promo_receipts",
+            "promo_packages",
             "notify_logs",
             "impact_hits",
             "impact_jobs",
